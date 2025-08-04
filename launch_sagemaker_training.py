@@ -1,41 +1,43 @@
-import sagemaker
-from sagemaker.pytorch import PyTorch
+# launch_sagemaker_training.py - Import and launch
+from sagemaker_setup import setup_sagemaker_training
 from load_config import load_terraform_config
 
 def launch_training():
-    # Load Terraform configuration
+    """Launch SageMaker training job using existing setup"""
+    
+    print("🚀 Launching SageMaker Training Job")
+    
+    # Use existing setup function
+    estimator, sagemaker_session = setup_sagemaker_training()
+    
+    # Load config for S3 paths
     config = load_terraform_config()
     
-    # Create estimator
-    estimator = PyTorch(
-        entry_point='train_sagemaker.py',      # Your script name
-        source_dir='src',                      # Directory to upload
-        role=config['sagemaker_role_arn'],
-        instance_type='ml.p3.2xlarge',
-        instance_count=const.INSTANCE_COUNT,
-        framework_version=const.FRAMEWORK_VERSION,
-        py_version='py38',
-        hyperparameters={
-            'epochs': 5,
-            'batch_size': 16,
-            'learning_rate': 1e-4,
-            'model_dim': 512,
-            'num_heads': 8,
-            'num_layers': 4
+    print("\n📋 Training Job Configuration:")
+    print(f"   Instance: {estimator.instance_type}")
+    print(f"   Count: {estimator.instance_count}")
+    print(f"   Spot instances: {estimator.use_spot_instances}")
+    print(f"   Max runtime: {estimator.max_run // 3600} hours")
+    
+    # Start training (this is the only new code!)
+    print("\n🎬 Starting training job...")
+    estimator.fit(
+        inputs={
+            'train': f's3://{config["s3_bucket_name"]}/data/train'
         },
-        distribution={'torch_distributed': {'enabled': True}},
-        use_spot_instances=True,
-        max_run=2*60*60,
-        output_path=f's3://{config["s3_bucket_name"]}/models',
+        wait=True,    # Wait for completion
+        logs=True     # Show logs in real-time
     )
     
-    print("🚀 Starting SageMaker training job...")
+    print(f"\n🎉 Training completed!")
+    print(f"   Model artifacts: {estimator.model_data}")
     
-    # This uploads your code and starts training
-    estimator.fit(wait=True, logs=True)
-    
-    print("✅ Training completed!")
     return estimator
 
 if __name__ == '__main__':
-    launch_training()
+    try:
+        estimator = launch_training()
+    except Exception as e:
+        print(f"❌ Training failed: {e}")
+        import traceback
+        traceback.print_exc()
