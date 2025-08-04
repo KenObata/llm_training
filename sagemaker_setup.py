@@ -1,6 +1,7 @@
 import sagemaker
 from sagemaker.pytorch import PyTorch
 from load_config import load_terraform_config
+from src import const
 
 def setup_sagemaker_training():
     """Set up SageMaker training using Terraform-created resources"""
@@ -34,7 +35,7 @@ def setup_sagemaker_training():
         instance_type='ml.p3.2xlarge',
         instance_count=const.INSTANCE_COUNT,
         framework_version=const.FRAMEWORK_VERSION,
-        py_version='py38',
+        py_version=const.PY_VERSION,
         hyperparameters=hyperparameters,
         
         # Distributed training configuration
