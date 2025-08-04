@@ -1,0 +1,43 @@
+# .gitignore
+# Virtual environment
+venv/
+env/
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+*.tfvars
+
+# AWS
+.aws/
+*.pem
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# SageMaker
+sagemaker_config.json
+*.tar.gz
+
+# Data files
+data/*.csv
+data/*.json
+data/*.parquet
