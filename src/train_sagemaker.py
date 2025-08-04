@@ -140,7 +140,7 @@ def main():
     # TODO: Create model (reuse SimpleTransformer from before)
     model = SimpleTransformer(
         vocab_size=10000,
-        d_model=args.model_dim,
+        dimension_model=args.model_dim,
         nhead=args.num_heads,
         num_layers=args.num_layers
     )
