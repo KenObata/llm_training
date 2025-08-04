@@ -21,10 +21,12 @@ def launch_training():
     
     # Start training (this is the only new code!)
     print("\n🎬 Starting training job...")
+
+    # the model creates synthetic data during runtime, so we skip inputs data.
     estimator.fit(
-        inputs={
-            'train': f's3://{config["s3_bucket_name"]}/data/train'
-        },
+        # inputs={
+        #    'train': f's3://{config["s3_bucket_name"]}/data/train'
+        #},
         wait=True,    # Wait for completion
         logs=True     # Show logs in real-time
     )
