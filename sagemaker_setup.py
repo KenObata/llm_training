@@ -46,7 +46,7 @@ def setup_sagemaker_training():
         },
         
         # Cost optimization
-        use_spot_instances=True,
+        use_spot_instances=const.USE_SPOT_INSTANCES,
         max_wait=4*60*60,
         max_run=2*60*60,
         
