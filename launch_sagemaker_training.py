@@ -12,8 +12,8 @@ def launch_training():
         source_dir='src',                      # Directory to upload
         role=config['sagemaker_role_arn'],
         instance_type='ml.p3.2xlarge',
-        instance_count=1,
-        framework_version='1.12.0',
+        instance_count=const.INSTANCE_COUNT,
+        framework_version=const.FRAMEWORK_VERSION,
         py_version='py38',
         hyperparameters={
             'epochs': 5,

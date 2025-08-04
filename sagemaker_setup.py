@@ -32,8 +32,8 @@ def setup_sagemaker_training():
         source_dir='src',
         role=config['sagemaker_role_arn'],  # From Terraform
         instance_type='ml.p3.2xlarge',
-        instance_count=2,
-        framework_version='2.0.1',
+        instance_count=const.INSTANCE_COUNT,
+        framework_version=const.FRAMEWORK_VERSION,
         py_version='py38',
         hyperparameters=hyperparameters,
         
