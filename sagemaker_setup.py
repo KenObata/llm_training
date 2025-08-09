@@ -2,7 +2,7 @@ import sagemaker
 from sagemaker.pytorch import PyTorch
 from load_config import load_terraform_config
 from src import const
-from src.const import HYPERPARAMETERS
+from src.const import HYPERPARAMETERS, MODEL_TRAIN_FILE_NAME
 
 def setup_sagemaker_training():
     """Set up SageMaker training using Terraform-created resources"""
@@ -23,7 +23,7 @@ def setup_sagemaker_training():
     
     # Create PyTorch estimator
     estimator = PyTorch(
-        entry_point='train_sagemaker.py',
+        entry_point=const.MODEL_TRAIN_FILE_NAME, # 'train_sagemaker.py',
         source_dir='src',
         role=config['sagemaker_role_arn'],  # From Terraform
         instance_type=const.INSTANCE_TYPE,
