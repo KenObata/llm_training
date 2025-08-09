@@ -2,6 +2,7 @@ import sagemaker
 from sagemaker.pytorch import PyTorch
 from load_config import load_terraform_config
 from src import const
+from src.const import HYPERPARAMETERS
 
 def setup_sagemaker_training():
     """Set up SageMaker training using Terraform-created resources"""
@@ -18,14 +19,7 @@ def setup_sagemaker_training():
     print(f"  Region: {config['aws_region']}")
     
     # Define training job parameters
-    hyperparameters = {
-        'epochs': 5,
-        'batch_size': 16,
-        'learning_rate': 1e-4,
-        'model_dim': 256,
-        'num_heads': 8,
-        'num_layers': 4
-    }
+    hyperparameters = HYPERPARAMETERS
     
     # Create PyTorch estimator
     estimator = PyTorch(
