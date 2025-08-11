@@ -15,3 +15,4 @@ HYPERPARAMETERS = {
         'num_layers': 4,
         'accumulation_steps': 4,
     }
+MODEL_TRAIN_FILE_NAME = "train_sagemaker_with_gradient_accumulation.py"
