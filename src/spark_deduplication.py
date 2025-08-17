@@ -16,7 +16,28 @@ from typing import List, Tuple
 from collections import defaultdict
 import hashlib
 
-from src.spark_utils import create_deduplication_spark_session
+# from src.spark_utils import create_deduplication_spark_session
+
+def create_deduplication_spark_session() -> SparkSession:
+    """Create Spark session optimized for deduplication"""
+    
+    spark = SparkSession.builder \
+        .appName("WebScaleDeduplication") \
+        .config("spark.sql.adaptive.enabled", "true") \
+        .config("spark.sql.adaptive.coalescePartitions.enabled", "true") \
+        .config("spark.sql.adaptive.skewJoin.enabled", "true") \
+        .config("spark.executor.memory", "8g") \
+        .config("spark.executor.cores", "4") \
+        .config("spark.driver.memory", "4g") \
+        .config("spark.sql.shuffle.partitions", "200") \
+        .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
+        .config("spark.sql.execution.arrow.pyspark.enabled", "true") \
+        .getOrCreate()
+    
+    # Set log level to reduce verbosity
+    spark.sparkContext.setLogLevel("WARN")
+    
+    return spark
 
 def create_minhash_udf(num_hashes: int = 128, k: int = 9):
     """
@@ -339,45 +360,11 @@ def deduplicate_at_scale(spark: SparkSession,
     print(f"Unique documents saved to: {output_path}")
     print(f"Duplicate mappings saved to: {dup_mapping_path}")
 
-def generate_test_data(spark: SparkSession, num_docs: int = 1000) -> DataFrame:
-    """Generate test data with known duplicates"""
-    
-    import random
-    
-    base_texts = [
-        "Machine learning is a method of data analysis that automates analytical model building",
-        "Deep learning is part of a broader family of machine learning methods based on artificial neural networks",
-        "Natural language processing is a subfield of linguistics computer science and artificial intelligence",
-        "Computer vision is an interdisciplinary scientific field that deals with how computers gain understanding from digital images",
-        "Reinforcement learning is an area of machine learning concerned with how intelligent agents take actions",
-    ]
-    
-    docs = []
-    for i in range(num_docs):
-        if random.random() < 0.3:  # 30% are near-duplicates
-            base_text = random.choice(base_texts)
-            # Add small modifications
-            modifications = [
-                "",
-                "!",
-                ".",
-                " Really interesting",
-                " (updated)",
-                " - revised version",
-            ]
-            text = base_text + random.choice(modifications)
-        else:
-            # Generate unique text
-            words = ["data", "science", "analysis", "model", "algorithm", "training",
-                    "prediction", "classification", "regression", "clustering"]
-            text = f"Document {i}: " + " ".join(random.choices(words, k=20))
-        
-        docs.append((f"doc_{i:04d}", text))
-    
-    return spark.createDataFrame(docs, ["doc_id", "text"])
 
 if __name__ == "__main__":
+    # How to test
     # Create Spark session
+    """
     spark = create_deduplication_spark_session()
     
     print("=" * 60)
@@ -399,13 +386,13 @@ if __name__ == "__main__":
     result = deduplicate_documents(spark, df, similarity_threshold=0.7)
     
     print("\n2. Testing with larger generated dataset...")
-    large_df = generate_test_data(spark, num_docs=100)
-    result_large = deduplicate_documents(spark, large_df, similarity_threshold=0.8)
+    # large_df = generate_test_data(spark, num_docs=100)
+    # result_large = deduplicate_documents(spark, large_df, similarity_threshold=0.8)
     
     # Show final results
     print("\n=== Final Deduplicated Dataset ===")
-    result_large.filter(~col("is_duplicate")).select("doc_id", "text").show(10, truncate=False)
-    
+    # result_large.filter(~col("is_duplicate")).select("doc_id", "text").show(10, truncate=False)
+    """
     # For production use with file paths:
     # deduplicate_at_scale(
     #     spark=spark,
@@ -413,6 +400,7 @@ if __name__ == "__main__":
     #     output_path="s3://your-bucket/output/deduplicated.parquet",
     #     similarity_threshold=0.85
     # )
-    
+    """
     spark.stop()
     print("\nSpark session closed successfully!")
+    """
