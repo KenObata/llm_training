@@ -80,7 +80,7 @@ def create_minhash_udf(num_hashes: int = 128, k: int = 9):
     # Return UDF with proper return type
     return udf(compute_minhash_signature, ArrayType(IntegerType()))
 
-def create_lsh_bands_udf(num_bands: int = 16, rows_per_band: int = 8):
+def create_lsh_bands_udf(num_bands: int = 16, rows_per_band: int = 8) -> SparkSession.udf:
     """
     Create UDF for LSH band generation
     
@@ -126,7 +126,7 @@ def create_lsh_bands_udf(num_bands: int = 16, rows_per_band: int = 8):
     
     return udf(generate_bands, band_schema)
 
-def estimate_similarity_udf():
+def estimate_similarity_udf() -> SparkSession.udf:
     """Create UDF to estimate Jaccard similarity from MinHash signatures"""
     
     def estimate_similarity(sig1: List[int], sig2: List[int]) -> float:
@@ -143,7 +143,7 @@ def estimate_similarity_udf():
             return 0.0
         
         # Estimated Jaccard similarity
-        return float(matches) / len(sig1)
+        return float(matches) / len(sig1) #  Both signatures ALWAYS have the same length
     
     return udf(estimate_similarity, FloatType())
 
@@ -222,7 +222,7 @@ def deduplicate_documents(spark: SparkSession,
         col("b.minhash_signature").alias("sig2")
     ).distinct()
     
-    print(f"Found {candidates.count()} candidate pairs")
+    print(f"Found {candidates.count()} candidate pairs: {candidates.select("doc1", "doc2", "sig1", "sig2").show(truncate=True)}")
     
     # Step 4: Compute actual similarity for candidates
     print("Step 4: Computing similarities for candidate pairs...")
