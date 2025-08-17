@@ -1,4 +1,6 @@
 # spark_deduplication.py - Complete implementation for web-scale deduplication
+
+# spark-submit --driver-memory 4g --executor-memory 4g src/spark_deduplication.py
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
@@ -8,6 +10,9 @@ import numpy as np
 from typing import List, Tuple
 from collections import defaultdict
 import hashlib
+
+# Import Python's built-in hash before it gets overwritten by PySpark
+builtin_hash = hash
 
 def create_deduplication_spark_session() -> SparkSession:
     """Create Spark session optimized for deduplication"""
@@ -89,15 +94,19 @@ def create_lsh_bands_udf(num_bands: int = 16, rows_per_band: int = 8):
         bands = []
         for band_id in range(num_bands):
             start_idx = band_id * rows_per_band
-            end_idx = min(start_idx + rows_per_band, len(signature))
+            if start_idx + rows_per_band < len(signature):
+                end_idx = start_idx + rows_per_band
+            else:
+                end_idx = len(signature)
+            # end_idx = min(start_idx + rows_per_band, len(signature))
             
             if start_idx >= len(signature):
                 break
             
             # Create band hash from the subset of signature
             band_values = tuple(signature[start_idx:end_idx])
-            # Use Python's hash function for the band
-            band_hash = hash(band_values)
+            # Use Python's built-in hash function for the band
+            band_hash = builtin_hash(band_values)
             
             bands.append((band_id, band_hash))
         
