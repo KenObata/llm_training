@@ -1,6 +1,11 @@
 # spark_deduplication.py - Complete implementation for web-scale deduplication
 
 # spark-submit --driver-memory 4g --executor-memory 4g src/spark_deduplication.py
+
+# Import Python's built-in functions before they get overwritten by PySpark
+builtin_hash = hash
+builtin_sum = sum
+
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
@@ -10,9 +15,6 @@ import numpy as np
 from typing import List, Tuple
 from collections import defaultdict
 import hashlib
-
-# Import Python's built-in hash before it gets overwritten by PySpark
-builtin_hash = hash
 
 def create_deduplication_spark_session() -> SparkSession:
     """Create Spark session optimized for deduplication"""
@@ -105,8 +107,8 @@ def create_lsh_bands_udf(num_bands: int = 16, rows_per_band: int = 8):
             
             # Create band hash from the subset of signature
             band_values = tuple(signature[start_idx:end_idx])
-            # Use Python's built-in hash function for the band
-            band_hash = builtin_hash(band_values)
+            # Use hashlib to avoid PySpark hash conflict
+            band_hash = int(hashlib.md5(str(band_values).encode()).hexdigest()[:8], 16)
             
             bands.append((band_id, band_hash))
         
@@ -132,7 +134,7 @@ def estimate_similarity_udf():
             return 0.0
         
         # Count matching MinHash values
-        matches = sum(1 for h1, h2 in zip(sig1, sig2) if h1 == h2 and h1 != 0)
+        matches = builtin_sum(1 for h1, h2 in zip(sig1, sig2) if h1 == h2 and h1 != 0)
         
         # Avoid division by zero
         if all(h == 0 for h in sig1) or all(h == 0 for h in sig2):
