@@ -242,39 +242,64 @@ def deduplicate_documents(spark: SparkSession,
         col("doc1").alias("src"),
         col("doc2").alias("dst")
     )
-    
+    print("edges records:")
+    edges.show(10, truncate=False)
     # Simple connected components using iterative approach
     # Initialize each document with its own group
     all_docs = input_df.select("doc_id").distinct()
     doc_groups = all_docs.withColumn("group_id", col("doc_id"))
-    
+    print("Initialized doc_groups from all_docs records:")
+    doc_groups.show(10, truncate=False)
     # Get all documents involved in duplicates
     docs_with_dups = edges.select("src").union(edges.select("dst")).distinct()
-    
+    print("docs_with_dups records:")
+    docs_with_dups.show(10, truncate=False)
     # Assign group IDs (using the minimum doc_id in each connected component)
     # This is a simplified version - for production, use GraphFrames
-    group_assignments = edges.groupBy("src").agg(
-        collect_set("dst").alias("connected_docs")
-    ).select(
+    edges_group_by_src_df = edges.groupBy("src").agg(
+        collect_set("dst").alias("connected_docs") # creates an array of all the documents that are connected to the source document
+    )
+
+    print("edges_group_by_src_df records:")
+    edges_group_by_src_df.show(10, truncate=False)
+
+    combine_src_and_connected_docs_df = edges_group_by_src_df.select(
         col("src").alias("doc_id"),
         array_union(array(col("src")), col("connected_docs")).alias("all_connected")
-    ).select(
+    )
+
+    print("combine_src_and_connected_docs_df records:")
+    combine_src_and_connected_docs_df.show(10, truncate=False)
+    
+    # group_id is representation of all duplicated documents. We only neeed one representative document for each group.
+    print("INFO: group_id is representation of all duplicated documents." + 
+    "We only neeed one representative document for each group.")
+
+    group_assignments = combine_src_and_connected_docs_df.select(
         col("doc_id"),
         array_min(col("all_connected")).alias("group_id")
     )
+    print("group_assignments schema:")
+    group_assignments.printSchema()
+    print("group_assignments records:")
     group_assignments.show(10,truncate=False)
     # Step 6: Mark duplicates and representatives
     print("Step 6: Marking duplicate groups...")
     
     # Join back with original data
-    result = input_df.join(
+    input_df_with_group_id = input_df.join(
         group_assignments,
         on="doc_id",
         how="left"
     ).withColumn(
         "group_id",
         when(col("group_id").isNull(), col("doc_id")).otherwise(col("group_id"))
-    ).withColumn(
+    )
+
+    print("input_df_with_group_id records:")
+    input_df_with_group_id.show(10, truncate=False)
+    
+    result = input_df_with_group_id.withColumn(
         "is_duplicate",
         col("group_id") != col("doc_id")
     )
