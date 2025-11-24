@@ -18,7 +18,7 @@ import hashlib
 
 from spark_utils import create_deduplication_spark_session
 
-def create_minhash_udf(num_hashes: int = 128, k: int = 9):
+def create_minhash_udf(num_hashes: int = 128, k: int = 9) -> SparkSession.udf:
     """
     Create UDF for MinHash signature computation
     
@@ -42,15 +42,18 @@ def create_minhash_udf(num_hashes: int = 128, k: int = 9):
         
         if not shingles:
             return [0] * num_hashes
-        
-        # Compute MinHash signature
-        signature = [float('inf')] * num_hashes
+        print(f"shingles: {shingles}")
+        # Compute MinHash signature. signature is a number of samples to test for similarity. We fetch min hash 128 times randomly and then compare two documents.
+        signature = [float('inf')] * num_hashes 
         
         for shingle in shingles:
             # Use different seeds for different hash functions
             for i in range(num_hashes):
                 # MurmurHash3 with different seeds acts as different hash functions
+                # each sample should have different ranking randomization. But among documents, this seed is consistent.
                 hash_val = mmh3.hash(shingle, seed=i, signed=False)
+
+                # here we are updating the signature with the minimum hash value
                 signature[i] = hash_val if hash_val < signature[i] else signature[i]
         
         # Convert to integers, replacing infinity with 0
@@ -148,6 +151,8 @@ def deduplicate_documents(spark: SparkSession,
     """
     
     print(f"Starting large-scale deduplication...")
+    print(f"input_df:") 
+    input_df.show(10, truncate=False)
     print(f"Parameters: threshold={similarity_threshold}, hashes={num_hashes}, bands={num_bands}")
     
     # Calculate rows per band
@@ -155,7 +160,7 @@ def deduplicate_documents(spark: SparkSession,
     
     # Step 1: Create MinHash UDF and compute signatures
     print("Step 1: Computing MinHash signatures...")
-    minhash_udf = create_minhash_udf(num_hashes=num_hashes, k=9)
+    minhash_udf = create_minhash_udf(num_hashes=num_hashes, k=9) # type is udf
     
     df_with_signatures = input_df.withColumn(
         "minhash_signature",
@@ -163,8 +168,8 @@ def deduplicate_documents(spark: SparkSession,
     ).cache()  # Cache as we'll use this multiple times
     
     # Show sample signatures for debugging
-    print("Sample signatures computed:")
-    df_with_signatures.select("doc_id", slice(col("minhash_signature"), 1, 5)).show(3, truncate=False)
+    print("Sample three records signatures computed:")
+    df_with_signatures.select("doc_id", slice(col("minhash_signature"), 1, 5), "text").show(3, truncate=False)
     
     # Step 2: Generate LSH bands
     print("Step 2: Generating LSH bands...")
@@ -175,6 +180,9 @@ def deduplicate_documents(spark: SparkSession,
         bands_udf(col("minhash_signature"))
     )
     
+    print("sample df_with_bands records:")
+    df_with_bands.select("doc_id", "bands").show(3, truncate=False)
+
     # Step 3: Explode bands to find candidates
     print("Step 3: Finding candidate pairs...")
     df_exploded = df_with_bands.select(
@@ -245,7 +253,7 @@ def deduplicate_documents(spark: SparkSession,
         col("doc_id"),
         array_min(col("all_connected")).alias("group_id")
     )
-    
+    group_assignments.show(10,truncate=False)
     # Step 6: Mark duplicates and representatives
     print("Step 6: Marking duplicate groups...")
     
