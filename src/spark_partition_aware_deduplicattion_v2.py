@@ -18,9 +18,37 @@ from collections import defaultdict
 import hashlib
 import time
 import json
-from spark_utils import create_spark_session_partition_aware
+from src.spark_utils import create_spark_session_partition_aware
 
-def compute_minhash_signature(text: str, num_hashes: int = 128, k: int = 9) -> List[int]:
+def normalize_text(text: str) -> str:
+    """
+    Normalize text to reduce impact of minor differences like articles
+    
+    Args:
+        text: Input text to normalize
+        
+    Returns:
+        Normalized text
+    """
+    import re
+    
+    # Convert to lowercase
+    text = text.lower()
+    
+    # Remove common articles and determiners that don't affect semantic meaning
+    articles = ['the', 'a', 'an', 'this', 'that', 'these', 'those']
+    
+    # Split into words, remove articles, rejoin
+    words = text.split()
+    filtered_words = [word for word in words if word.strip('.,!?;:"()[]{}') not in articles]
+    
+    # If we removed too many words, keep the original to avoid empty text
+    if len(filtered_words) < len(words) * 0.3:  # Keep at least 30% of words
+        return text
+    
+    return ' '.join(filtered_words)
+
+def compute_minhash_signature(text: str, num_hashes: int = 128, ngram: int = 9, normalize: bool = True) -> List[int]:
     """
     Compute MinHash signature for text
     
@@ -28,18 +56,26 @@ def compute_minhash_signature(text: str, num_hashes: int = 128, k: int = 9) -> L
         text: Input text
         num_hashes: Number of hash functions
         k: Shingle size
+        normalize: Whether to normalize text first (removes articles, etc.)
     
     Returns:
         MinHash signature
     """
-    if not text or len(text) < k:
+    if not text:
+        return [0] * num_hashes
+        
+    # Optionally normalize text to handle article differences
+    if normalize:
+        text = normalize_text(text)
+    
+    if len(text) < ngram:
         return [0] * num_hashes
     
     # Create k-shingles
     shingles = set()
-    text_lower = text.lower()
-    for i in range(len(text_lower) - k + 1):
-        shingle = text_lower[i:i+k]
+    text_lower = text.lower() if not normalize else text  # Already lowercased in normalize
+    for i in range(len(text_lower) - ngram + 1):
+        shingle = text_lower[i:i+ngram]
         shingles.add(shingle)
     
     if not shingles:
@@ -114,7 +150,7 @@ def partition_aware_deduplicate(
     
     # Create MinHash UDF
     minhash_udf = udf(
-        lambda text: compute_minhash_signature(text, num_hashes, 9),
+        lambda text: compute_minhash_signature(text=text, num_hashes=num_hashes, ngram=9, normalize=True),
         ArrayType(IntegerType())
     )
     
@@ -295,6 +331,8 @@ def partition_aware_deduplicate(
         col("doc1").alias("src"),
         col("doc2").alias("dst")
     )
+    print("edges records:")
+    edges.show(10, truncate=False)
     
     # Simple connected components using iterative approach
     # Initialize each document with itself as representative
@@ -302,31 +340,76 @@ def partition_aware_deduplicate(
     
     # Get documents involved in duplicates
     docs_with_duplicates = edges.select("src").union(edges.select("dst")).distinct()
-    
+    print("docs_with_duplicates:")
+    docs_with_duplicates.show(10, truncate=False)
+
     # Build groups
-    groups = edges.groupBy("src").agg(
+    edges_group_by_src_df = edges.groupBy("src").agg(
         collect_set("dst").alias("connected_docs")
-    ).select(
+    )
+    print("edges_group_by_src_df records:")
+    edges_group_by_src_df.show(10, truncate=False)
+    
+    combine_src_and_connected_docs_df = edges_group_by_src_df.select(
         col("src").alias("doc_id"),
         array_union(array(col("src")), col("connected_docs")).alias("all_connected")
     )
-    
+    print("combine_src_and_connected_docs_df records:")
+    combine_src_and_connected_docs_df.show(10, truncate=False)
+
+
     # Find representative (minimum doc_id in group)
-    doc_representatives = groups.select(
+    doc_id_and_representative_doc_id_df = combine_src_and_connected_docs_df.select(
         explode(col("all_connected")).alias("doc_id"),
         array_min(col("all_connected")).alias("representative_id")
     )
+
+    print("doc_id_and_representative_doc_id_df records:")
+    doc_id_and_representative_doc_id_df.show(10, truncate=False)
+
+    # doc_id_and_representative_doc_id_df still contains duplicates.
+    """
+    ex) 
+    combine_src_and_connected_docs_df records:
+    +------+------------------+
+    |doc_id|all_connected     |
+    +------+------------------+
+    |doc1  |[doc1, doc4, doc2]|
+    |doc2  |[doc2, doc4]      |
+    +------+------------------+
+
+    doc_id_and_representative_doc_id_df records:
+    +------+---------------------+
+    |doc_id|representative_doc_id|
+    +------+---------------------+
+    |doc1  |doc1                 |
+    |doc4  |doc1                 |
+    |doc2  |doc1                 |
+    |doc2  |doc2                 |
+    |doc4  |doc2                 |
+    +------+---------------------+
+
+    This is because we explode the all_connected array and then select the representative document id.
+    So we are missing deduping transient, ex) doc1-doc2-doc4 as one group.
+    So now we need to do this:
+    """
+    # Create temporary view for SQL query
+    doc_id_and_representative_doc_id_df.createOrReplaceTempView("doc_id_and_representative_doc_id_df")
     
-    # Remove duplicates and get final mapping
-    doc_representatives = doc_representatives.groupBy("doc_id").agg(
-        min("representative_id").alias("representative_id")
-    )
+    sql_command = """
+    SELECT doc_id, MIN(representative_id) as representative_id
+    FROM doc_id_and_representative_doc_id_df
+    GROUP BY doc_id
+    """
+    doc_id_and_representative_doc_id_df_deduped = spark.sql(sql_command)
+    print("doc_id_and_representative_doc_id_df_deduped:")
+    doc_id_and_representative_doc_id_df_deduped.show(10)
     
     # Step 6: Join back with original data
     print("Step 6: Marking duplicates...")
     
     result = input_df.join(
-        doc_representatives,
+        doc_id_and_representative_doc_id_df_deduped,
         on="doc_id",
         how="left"
     ).withColumn(
