@@ -18,7 +18,10 @@ from collections import defaultdict
 import hashlib
 import time
 import json
-from src.spark_utils import create_spark_session_partition_aware
+try:
+    from .spark_utils import create_spark_session_partition_aware
+except ImportError:
+    from spark_utils import create_spark_session_partition_aware
 
 def normalize_text(text: str) -> str:
     """
