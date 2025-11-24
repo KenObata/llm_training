@@ -203,6 +203,7 @@ def deduplicate_documents(spark: SparkSession,
     )
     print("df_exploded records:")
     df_exploded.select("doc_id", "band_id", "band_hash").show(10, truncate=False)
+
     # Self-join to find documents that share at least one band
     candidates = df_exploded.alias("a").join(
         df_exploded.alias("b"),
@@ -216,7 +217,8 @@ def deduplicate_documents(spark: SparkSession,
         col("b.minhash_signature").alias("sig2")
     ).distinct()
     
-    print(f"Found {candidates.count()} candidate pairs: {candidates.select("doc1", "doc2", "sig1", "sig2").show(truncate=True)}")
+    print(f"Found {candidates.count()} candidate pairs") 
+    candidates.select("doc1", "doc2", "sig1", "sig2").show(truncate=True)
     
     # Step 4: Compute actual similarity for candidates
     print("Step 4: Computing similarities for candidate pairs...")
