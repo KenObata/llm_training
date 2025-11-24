@@ -365,7 +365,7 @@ def deduplicate_documents(spark: SparkSession,
     
     return result
 
-def deduplicate_at_scale(spark: SparkSession,
+def deduplicate_documents_wrapper(spark: SparkSession,
                          input_path: str,
                          output_path: str,
                          similarity_threshold: float = 0.8):
@@ -454,7 +454,7 @@ if __name__ == "__main__":
     # result_large.filter(~col("is_duplicate")).select("doc_id", "text").show(10, truncate=False)
     """
     # For production use with file paths:
-    # deduplicate_at_scale(
+    # deduplicate_documents_wrapper(
     #     spark=spark,
     #     input_path="s3://your-bucket/input/documents.parquet",
     #     output_path="s3://your-bucket/output/deduplicated.parquet",
