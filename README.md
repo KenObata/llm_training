@@ -28,12 +28,27 @@ setup
 pip install spark-llm-dedup
 ```
 
-in codebase
+in codebase, first run vanila spark ml library's text-deduplication. 
+This will OOM error out after TB of text documets.
 ```
 from spark_llm_dedup import deduplicate_corpus
 deduplicate_corpus("s3://common-crawl/", threshold=0.8)
 ```
 
+Next, run partition aware text de-duplication
+```
+spark-submit \
+  --master yarn \
+  --deploy-mode cluster \
+  --driver-memory 8g \
+  --executor-memory 16g \
+  --num-executors 10 \
+  --conf spark.sql.shuffle.partitions=1000 \
+  partition_aware_deduplication.py
+
+# Or run locally for testing
+python partition_aware_deduplication.py
+```
 
 # math behind
 
