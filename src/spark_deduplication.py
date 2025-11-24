@@ -16,7 +16,7 @@ from typing import List, Tuple
 from collections import defaultdict
 import hashlib
 
-from src.spark_utils import create_deduplication_spark_session
+from spark_utils import create_deduplication_spark_session
 
 def create_minhash_udf(num_hashes: int = 128, k: int = 9):
     """
@@ -343,7 +343,7 @@ def deduplicate_at_scale(spark: SparkSession,
 if __name__ == "__main__":
     # How to test
     # Create Spark session
-    """
+    
     spark = create_deduplication_spark_session()
     
     print("=" * 60)
@@ -363,8 +363,8 @@ if __name__ == "__main__":
     
     df = spark.createDataFrame(sample_data, ["doc_id", "text"])
     result = deduplicate_documents(spark, df, similarity_threshold=0.7)
-    
-    print("\n2. Testing with larger generated dataset...")
+    result.filter(~col("is_duplicate")).select("doc_id", "text").show(10, truncate=False)
+    # print("\n2. Testing with larger generated dataset...")
     # large_df = generate_test_data(spark, num_docs=100)
     # result_large = deduplicate_documents(spark, large_df, similarity_threshold=0.8)
     
@@ -382,4 +382,4 @@ if __name__ == "__main__":
     """
     spark.stop()
     print("\nSpark session closed successfully!")
-    """
+    
