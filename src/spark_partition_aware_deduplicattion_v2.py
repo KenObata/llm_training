@@ -1,10 +1,12 @@
 # spark_partition_aware_deduplicattion_v2.py - Scalable partition-aware MinHash LSH implementation
 
 # Import Python's built-in functions before PySpark overwrites them
+import builtins
 builtin_hash = hash
 builtin_sum = sum
 builtin_min = min
 builtin_max = max
+builtin_abs = builtins.abs
 
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import *
@@ -149,7 +151,7 @@ def partition_aware_deduplicate(
             band_hash = builtin_hash(band_values)
             
             # Map to partition - documents with same band hash go to same partition
-            partition_id = abs(band_hash) % num_partitions
+            partition_id = builtin_abs(band_hash) % num_partitions
             partitions.add(partition_id)
         
         return list(partitions)
@@ -416,7 +418,8 @@ def compare_with_vanilla(spark: SparkSession, test_size: int = 10000):
     
     # Get Spark metrics
     status = spark.sparkContext.statusTracker()
-    print(f"  - Active tasks: {len(status.getActiveTasks())}")
+    print(f"  - Active jobs: {len(status.getActiveJobsIds())}")
+    print(f"  - Active stages: {len(status.getActiveStageIds())}")
     
     # Note: For vanilla comparison, you would run the original implementation
     # but it would likely be much slower or OOM on larger datasets
