@@ -271,29 +271,66 @@ def deduplicate_documents(spark: SparkSession,
     print("combine_src_and_connected_docs_df records:")
     combine_src_and_connected_docs_df.show(10, truncate=False)
     
+    # create doc_id, representative doc_id for each duplicated doc.
+    doc_id_and_representative_doc_id_df = combine_src_and_connected_docs_df.select(
+        explode(col("all_connected")).alias("doc_id"),
+        array_min(col("all_connected")).alias("representative_doc_id")
+    )
+    print("doc_id_and_representative_doc_id_df records:")
+    doc_id_and_representative_doc_id_df.show(10, truncate=False)
+
+    # doc_id_and_representative_doc_id_df contains duplicates.
+    """
+    ex) 
+    combine_src_and_connected_docs_df records:
+    +------+------------------+
+    |doc_id|all_connected     |
+    +------+------------------+
+    |doc1  |[doc1, doc4, doc2]|
+    |doc2  |[doc2, doc4]      |
+    +------+------------------+
+
+    doc_id_and_representative_doc_id_df records:
+    +------+---------------------+
+    |doc_id|representative_doc_id|
+    +------+---------------------+
+    |doc1  |doc1                 |
+    |doc4  |doc1                 |
+    |doc2  |doc1                 |
+    |doc2  |doc2                 |
+    |doc4  |doc2                 |
+    +------+---------------------+
+
+    This is because we explode the all_connected array and then select the representative document id.
+    So now we need to do this:
+    """
+    # Create temporary view for SQL query
+    doc_id_and_representative_doc_id_df.createOrReplaceTempView("doc_id_and_representative_doc_id_df")
+    
+    sql_command = """
+    SELECT doc_id, MIN(representative_doc_id) as representative_doc_id
+    FROM doc_id_and_representative_doc_id_df
+    GROUP BY doc_id
+    """
+    doc_id_and_representative_doc_id_df_deduped = spark.sql(sql_command)
+    print("doc_id_and_representative_doc_id_df_deduped:")
+    doc_id_and_representative_doc_id_df_deduped.show(10)
+
     # group_id is representation of all duplicated documents. We only neeed one representative document for each group.
     print("INFO: group_id is representation of all duplicated documents." + 
     "We only neeed one representative document for each group.")
 
-    group_assignments = combine_src_and_connected_docs_df.select(
-        col("doc_id"),
-        array_min(col("all_connected")).alias("group_id")
-    )
-    print("group_assignments schema:")
-    group_assignments.printSchema()
-    print("group_assignments records:")
-    group_assignments.show(10,truncate=False)
     # Step 6: Mark duplicates and representatives
     print("Step 6: Marking duplicate groups...")
     
     # Join back with original data
     input_df_with_group_id = input_df.join(
-        group_assignments,
+        doc_id_and_representative_doc_id_df_deduped,
         on="doc_id",
         how="left"
     ).withColumn(
-        "group_id",
-        when(col("group_id").isNull(), col("doc_id")).otherwise(col("group_id"))
+        "representative_doc_id",
+        when(col("representative_doc_id").isNull(), col("doc_id")).otherwise(col("representative_doc_id"))
     )
 
     print("input_df_with_group_id records:")
@@ -301,11 +338,13 @@ def deduplicate_documents(spark: SparkSession,
     
     result = input_df_with_group_id.withColumn(
         "is_duplicate",
-        col("group_id") != col("doc_id")
+        col("representative_doc_id") != col("doc_id")
     )
+    print("result records:")
+    result.show(10, truncate=False)
     
     # Add statistics
-    dup_stats = result.groupBy("group_id").agg(
+    dup_stats = result.groupBy("representative_doc_id").agg(
         count("*").alias("group_size"),
         collect_list("doc_id").alias("group_members")
     ).filter(col("group_size") > 1)
