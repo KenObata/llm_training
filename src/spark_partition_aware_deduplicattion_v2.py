@@ -487,8 +487,9 @@ def main():
         "doc_id", "representative_id", "text"
     ).show(truncate=False)
     
-    # Run performance comparison
-    compare_with_vanilla(spark, test_size=1000)
+    # Run performance comparison 
+    # ToDo: uncomment after v1 ready.
+    # compare_with_vanilla(spark, test_size=1000)
     
     # Clean up
     spark.stop()

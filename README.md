@@ -16,7 +16,7 @@ pip install -r requirements.txt
 ```
 # Run Spark locally with 4GB RAM
 ```
-spark-submit --driver-memory 4g --executor-memory 4g src/spark_deduplication.py
+spark-submit --driver-memory 4g --executor-memory 4g src/spark_deduplication_vanilla.py
 ```
 - spark_deduplication.py - Complete implementation for web-scale deduplication
 - common_crawl_explorer.py: PoC
