@@ -185,17 +185,24 @@ def deduplicate_documents(spark: SparkSession,
 
     # Step 3: Explode bands to find candidates
     print("Step 3: Finding candidate pairs...")
-    df_exploded = df_with_bands.select(
+
+    # df_with_bands's bands column is an array of tuples (band_id, band_hash). We explode it to get a row for each band.
+    df_bands_array_exploded = df_with_bands.select(
         col("doc_id"),
         col("minhash_signature"),
         explode(col("bands")).alias("band")
-    ).select(
+    )
+    print("df_bands_array_exploded records:")
+    df_bands_array_exploded.select("doc_id", "band").show(10, truncate=False)
+
+    df_exploded = df_bands_array_exploded.select(
         col("doc_id"),
         col("minhash_signature"),
         col("band.band_id").alias("band_id"),
         col("band.band_hash").alias("band_hash")
     )
-    
+    print("df_exploded records:")
+    df_exploded.select("doc_id", "band_id", "band_hash").show(10, truncate=False)
     # Self-join to find documents that share at least one band
     candidates = df_exploded.alias("a").join(
         df_exploded.alias("b"),
