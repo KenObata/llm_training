@@ -46,11 +46,20 @@ spark-submit \
   --conf spark.sql.shuffle.partitions=1000 \
   spark_partition_aware_deduplicattion_v2.py.py
 ```
-# Or run locally for testing
+Or run it on a single machine
+```
+spark-submit --driver-memory 4g --executor-memory 4g src/spark_partition_aware_deduplicattion_v2.py
+```
+
+Or run locally for testing
 ```
 python src/spark_partition_aware_deduplicattion_v2.py
 ```
 
+# How to unit test
+```
+pytest test/spark_partition_aware_deduplicattion_v2_test.py::TestDocumentSimilarity -v
+```
 # math behind
 
 1.128 sampling called min hash

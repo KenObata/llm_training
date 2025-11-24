@@ -14,6 +14,7 @@ pandas>=2.0.0
 jupyter>=1.0.0
 matplotlib>=3.7.0
 tqdm>=4.65.0
+pytest
 
 # Optional: for advanced features later
 transformers>=4.30.0
