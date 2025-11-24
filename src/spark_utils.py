@@ -28,7 +28,7 @@ def create_spark_session_partition_aware(app_name: str = "PartitionAwareDedup") 
     """Create optimized Spark session for large-scale deduplication"""
     
     # these are default config, so they can be overriden
-    return SparkSession.builder \
+    spark = SparkSession.builder \
         .appName(app_name) \
         .config("spark.sql.adaptive.enabled", "true") \
         .config("spark.sql.adaptive.coalescePartitions.enabled", "true") \
@@ -39,3 +39,7 @@ def create_spark_session_partition_aware(app_name: str = "PartitionAwareDedup") 
         .config("spark.memory.offHeap.size", "2g") \
         .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
         .getOrCreate()
+
+    # Set log level to reduce verbosity
+    spark.sparkContext.setLogLevel("WARN")
+    return spark
