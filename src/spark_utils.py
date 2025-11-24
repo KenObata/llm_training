@@ -23,3 +23,19 @@ def create_deduplication_spark_session() -> SparkSession:
     spark.sparkContext.setLogLevel("WARN")
     
     return spark
+
+def create_spark_session_partition_aware(app_name: str = "PartitionAwareDedup") -> SparkSession:
+    """Create optimized Spark session for large-scale deduplication"""
+    
+    # these are default config, so they can be overriden
+    return SparkSession.builder \
+        .appName(app_name) \
+        .config("spark.sql.adaptive.enabled", "true") \
+        .config("spark.sql.adaptive.coalescePartitions.enabled", "true") \
+        .config("spark.sql.adaptive.skewJoin.enabled", "true") \
+        .config("spark.sql.shuffle.partitions", "1000") \
+        .config("spark.default.parallelism", "1000") \
+        .config("spark.memory.offHeap.enabled", "true") \
+        .config("spark.memory.offHeap.size", "2g") \
+        .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
+        .getOrCreate()

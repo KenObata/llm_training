@@ -44,10 +44,11 @@ spark-submit \
   --executor-memory 16g \
   --num-executors 10 \
   --conf spark.sql.shuffle.partitions=1000 \
-  partition_aware_deduplication.py
-
+  spark_partition_aware_deduplicattion_v2.py.py
+```
 # Or run locally for testing
-python partition_aware_deduplication.py
+```
+python src/spark_partition_aware_deduplicattion_v2.py
 ```
 
 # math behind
