@@ -180,7 +180,7 @@ def deduplicate_documents(spark: SparkSession,
         bands_udf(col("minhash_signature"))
     )
     
-    print("sample df_with_bands records:")
+    print("sample df_with_bands records - bands hash is hash() from 8 min hash:")
     df_with_bands.select("doc_id", "bands").show(3, truncate=False)
 
     # Step 3: Explode bands to find candidates
