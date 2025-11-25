@@ -18,6 +18,11 @@ from collections import defaultdict
 import hashlib
 import time
 import json
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 try:
     from .spark_utils import create_spark_session_partition_aware
 except ImportError:
@@ -142,14 +147,14 @@ def partition_aware_deduplicate(
         DataFrame with duplicates marked
     """
     
-    print(f"Starting PARTITION-AWARE deduplication...")
-    print(f"Parameters: threshold={similarity_threshold}, hashes={num_hashes}, "
+    logger.info(f"Starting PARTITION-AWARE deduplication...")
+    logger.info(f"Parameters: threshold={similarity_threshold}, hashes={num_hashes}, "
           f"bands={num_bands}, partitions={num_partitions}")
     
     rows_per_band = num_hashes // num_bands
     
     # Step 1: Compute MinHash signatures
-    print("Step 1: Computing MinHash signatures...")
+    logger.info("Step 1: Computing MinHash signatures...")
     
     # Create MinHash UDF
     minhash_udf = udf(
@@ -163,10 +168,10 @@ def partition_aware_deduplicate(
     ).cache()  # Cache as we'll use multiple times
     
     total_docs = df_with_signatures.count()
-    print(f"Processing {total_docs} documents...")
+    logger.info(f"Processing {total_docs} documents...")
     
     # Step 2: Compute partition assignments based on LSH bands
-    print("Step 2: Computing partition assignments (KEY INNOVATION)...")
+    logger.info("Step 2: Computing partition assignments (KEY INNOVATION)...")
     
     def compute_partition_assignments(signature: List[int]) -> List[int]:
         """
@@ -214,11 +219,11 @@ def partition_aware_deduplicate(
         max("num_partitions_per_doc").alias("max_partitions")
     ).collect()[0]
     
-    print(f"Partition assignment stats - Avg: {partition_stats['avg_partitions']:.2f}, "
+    logger.info(f"Partition assignment stats - Avg: {partition_stats['avg_partitions']:.2f}, "
           f"Min: {partition_stats['min_partitions']}, Max: {partition_stats['max_partitions']}")
     
     # Step 3: Explode and repartition - documents go to their assigned partitions
-    print("Step 3: Smart partitioning - co-locating similar documents...")
+    logger.info("Step 3: Smart partitioning - co-locating similar documents...")
     
     df_exploded = df_with_partitions.select(
         col("doc_id"),
@@ -232,7 +237,7 @@ def partition_aware_deduplicate(
     df_partitioned = df_exploded.repartition(num_partitions, col("partition_id"))
     
     # Step 4: Process each partition locally (no shuffle!)
-    print("Step 4: Local deduplication within partitions (NO SHUFFLE)...")
+    logger.info("Step 4: Local deduplication within partitions (NO SHUFFLE)...")
     
     def process_partition_locally(iterator: Iterator) -> Iterator:
         """
@@ -324,10 +329,10 @@ def partition_aware_deduplicate(
     similar_pairs_df = similar_pairs_df.dropDuplicates(["doc1", "doc2"])
     
     similar_count = similar_pairs_df.count()
-    print(f"Found {similar_count} similar document pairs")
+    logger.info(f"Found {similar_count} similar document pairs")
     
     # Step 5: Build connected components for duplicate groups
-    print("Step 5: Building duplicate groups...")
+    logger.info("Step 5: Building duplicate groups...")
     
     # Get all edges
     edges = similar_pairs_df.select(
@@ -409,7 +414,7 @@ def partition_aware_deduplicate(
     doc_id_and_representative_doc_id_df_deduped.show(10)
     
     # Step 6: Join back with original data
-    print("Step 6: Marking duplicates...")
+    logger.info("Step 6: Marking duplicates...")
     
     result = input_df.join(
         doc_id_and_representative_doc_id_df_deduped,
@@ -429,15 +434,15 @@ def partition_aware_deduplicate(
     duplicate_docs = result.filter(col("is_duplicate")).count()
     unique_docs = total_docs - duplicate_docs
     
-    print("\n" + "="*60)
-    print("PARTITION-AWARE DEDUPLICATION COMPLETE")
-    print("="*60)
-    print(f"Total documents: {total_docs:,}")
-    print(f"Duplicate documents: {duplicate_docs:,}")
-    print(f"Unique documents: {unique_docs:,}")
-    print(f"Deduplication rate: {duplicate_docs/total_docs*100:.2f}%")
-    print(f"Speedup vs vanilla: ~10x for large datasets")
-    print("="*60)
+    logger.info("\n" + "="*60)
+    logger.info("PARTITION-AWARE DEDUPLICATION COMPLETE")
+    logger.info("="*60)
+    logger.info(f"Total documents: {total_docs:,}")
+    logger.info(f"Duplicate documents: {duplicate_docs:,}")
+    logger.info(f"Unique documents: {unique_docs:,}")
+    logger.info(f"Deduplication rate: {duplicate_docs/total_docs*100:.2f}%")
+    logger.info(f"Speedup vs vanilla: ~10x for large datasets")
+    logger.info("="*60)
     
     return result
 
@@ -445,14 +450,14 @@ def compare_with_vanilla(spark: SparkSession, test_size: int = 10000):
     """
     Compare partition-aware vs vanilla approach to show the difference
     """
-    print("\n" + "="*60)
-    print("PERFORMANCE COMPARISON: Partition-Aware vs Vanilla")
-    print("="*60)
+    logger.info("\n" + "="*60)
+    logger.info("PERFORMANCE COMPARISON: Partition-Aware vs Vanilla")
+    logger.info("="*60)
     
     # Generate test data
     from pyspark.sql.functions import rand, concat, lit
     
-    print(f"\nGenerating {test_size} test documents...")
+    logger.info(f"\nGenerating {test_size} test documents...")
     
     # Create diverse documents with some duplicates
     base_docs = spark.range(test_size).select(
@@ -481,7 +486,7 @@ def compare_with_vanilla(spark: SparkSession, test_size: int = 10000):
     test_df.cache()
     
     # Measure partition-aware approach
-    print("\n1. Running PARTITION-AWARE deduplication...")
+    logger.info("\n1. Running PARTITION-AWARE deduplication...")
     start_time = time.time()
     
     result_partition_aware = partition_aware_deduplicate(
@@ -498,32 +503,32 @@ def compare_with_vanilla(spark: SparkSession, test_size: int = 10000):
     partition_aware_unique = result_partition_aware.filter(~col("is_duplicate")).count()
     partition_aware_time = time.time() - start_time
     
-    print(f"\nPartition-aware approach:")
-    print(f"  - Time: {partition_aware_time:.2f} seconds")
-    print(f"  - Unique documents: {partition_aware_unique}")
+    logger.info(f"\nPartition-aware approach:")
+    logger.info(f"  - Time: {partition_aware_time:.2f} seconds")
+    logger.info(f"  - Unique documents: {partition_aware_unique}")
     
     # Get Spark metrics
     status = spark.sparkContext.statusTracker()
-    print(f"  - Active jobs: {len(status.getActiveJobsIds())}")
-    print(f"  - Active stages: {len(status.getActiveStageIds())}")
+    logger.info(f"  - Active jobs: {len(status.getActiveJobsIds())}")
+    logger.info(f"  - Active stages: {len(status.getActiveStageIds())}")
     
     # Note: For vanilla comparison, you would run the original implementation
     # but it would likely be much slower or OOM on larger datasets
     
-    print("\n2. Vanilla approach (not running to avoid OOM):")
-    print("  - Expected time: ~10x slower")
-    print("  - Expected shuffle: ~100x data size")
-    print("  - Risk: OOM on datasets > 10GB")
+    logger.info("\n2. Vanilla approach (not running to avoid OOM):")
+    logger.info("  - Expected time: ~10x slower")
+    logger.info("  - Expected shuffle: ~100x data size")
+    logger.info("  - Risk: OOM on datasets > 10GB")
     
-    print("\n" + "="*60)
-    print("KEY ADVANTAGES OF PARTITION-AWARE APPROACH:")
-    print("="*60)
-    print("1. Linear memory scaling (vs quadratic for vanilla)")
-    print("2. Minimal shuffle (only initial partitioning)")
-    print("3. Local processing within partitions")
-    print("4. Scales to 1TB+ datasets")
-    print("5. 10-100x faster on large datasets")
-    print("="*60)
+    logger.info("\n" + "="*60)
+    logger.info("KEY ADVANTAGES OF PARTITION-AWARE APPROACH:")
+    logger.info("="*60)
+    logger.info("1. Linear memory scaling (vs quadratic for vanilla)")
+    logger.info("2. Minimal shuffle (only initial partitioning)")
+    logger.info("3. Local processing within partitions")
+    logger.info("4. Scales to 1TB+ datasets")
+    logger.info("5. 10-100x faster on large datasets")
+    logger.info("="*60)
     
     return result_partition_aware
 
@@ -534,12 +539,12 @@ def main():
     # Create Spark session
     spark = create_spark_session_partition_aware()
     
-    print("="*60)
-    print("PARTITION-AWARE MINHASH LSH DEDUPLICATION")
-    print("="*60)
+    logger.info("="*60)
+    logger.info("PARTITION-AWARE MINHASH LSH DEDUPLICATION")
+    logger.info("="*60)
     
     # Test with sample data
-    print("\nTesting with sample data...")
+    logger.info("\nTesting with sample data...")
     
     sample_data = [
         ("doc1", "The quick brown fox jumps over the lazy dog."),
@@ -565,10 +570,10 @@ def main():
         num_partitions=10
     )
     
-    print("\nUnique documents after deduplication:")
+    logger.info("\nUnique documents after deduplication:")
     result.filter(~col("is_duplicate")).select("doc_id", "text").show(truncate=False)
     
-    print("\nDuplicate groups found:")
+    logger.info("\nDuplicate groups found:")
     result.filter(col("is_duplicate")).select(
         "doc_id", "representative_id", "text"
     ).show(truncate=False)
@@ -579,7 +584,7 @@ def main():
     
     # Clean up
     spark.stop()
-    print("\nSpark session closed successfully!")
+    logger.info("\nSpark session closed successfully!")
 
 if __name__ == "__main__":
     main()

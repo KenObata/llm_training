@@ -56,13 +56,17 @@ Or run locally for testing
 python src/spark_partition_aware_deduplicattion_v2.py
 ```
 
-# How to unit test
+# How to unit/integration test
+
+## Unit Test
 ```
-pytest test/spark_partition_aware_deduplicattion_v2_test.py::TestDocumentSimilarity -v
+pytest --log-cli-level=INFO test/spark_partition_aware_deduplicattion_v2_unit_test.py::TestDocumentSimilarity -v
 ```
 
-
-
+## Integration Test
+```
+pytest --log-cli-level=INFO test/spark_partition_aware_deduplicattion_v2_integration_test.py
+```
 
 # math behind
 
