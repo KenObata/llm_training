@@ -339,8 +339,10 @@ def partition_aware_deduplicate(
         col("doc1").alias("src"),
         col("doc2").alias("dst")
     )
-    print("edges records:")
-    edges.show(10, truncate=False)
+    logger.info("edges records:")
+    edges_df = edges.limit(10).collect()
+    for row in edges_df:
+        logger.info(f"  {row}")
     
     # Simple connected components using iterative approach
     # Initialize each document with itself as representative
@@ -348,22 +350,28 @@ def partition_aware_deduplicate(
     
     # Get documents involved in duplicates
     docs_with_duplicates = edges.select("src").union(edges.select("dst")).distinct()
-    print("docs_with_duplicates:")
-    docs_with_duplicates.show(10, truncate=False)
+    logger.info("docs_with_duplicates:")
+    docs_df = docs_with_duplicates.limit(10).collect()
+    for row in docs_df:
+        logger.info(f"  {row}")
 
     # Build groups
     edges_group_by_src_df = edges.groupBy("src").agg(
         collect_set("dst").alias("connected_docs")
     )
-    print("edges_group_by_src_df records:")
-    edges_group_by_src_df.show(10, truncate=False)
+    logger.info("edges_group_by_src_df records:")
+    edges_group_df = edges_group_by_src_df.limit(10).collect()
+    for row in edges_group_df:
+        logger.info(f"  {row}")
     
     combine_src_and_connected_docs_df = edges_group_by_src_df.select(
         col("src").alias("doc_id"),
         array_union(array(col("src")), col("connected_docs")).alias("all_connected")
     )
-    print("combine_src_and_connected_docs_df records:")
-    combine_src_and_connected_docs_df.show(10, truncate=False)
+    logger.info("combine_src_and_connected_docs_df records:")
+    combine_df = combine_src_and_connected_docs_df.limit(10).collect()
+    for row in combine_df:
+        logger.info(f"  {row}")
 
 
     # Find representative (minimum doc_id in group)
@@ -372,8 +380,10 @@ def partition_aware_deduplicate(
         array_min(col("all_connected")).alias("representative_id")
     )
 
-    print("doc_id_and_representative_doc_id_df records:")
-    doc_id_and_representative_doc_id_df.show(10, truncate=False)
+    logger.info("doc_id_and_representative_doc_id_df records:")
+    doc_rep_df = doc_id_and_representative_doc_id_df.limit(10).collect()
+    for row in doc_rep_df:
+        logger.info(f"  {row}")
 
     # doc_id_and_representative_doc_id_df still contains duplicates.
     """
@@ -410,8 +420,10 @@ def partition_aware_deduplicate(
     GROUP BY doc_id
     """
     doc_id_and_representative_doc_id_df_deduped = spark.sql(sql_command)
-    print("doc_id_and_representative_doc_id_df_deduped:")
-    doc_id_and_representative_doc_id_df_deduped.show(10)
+    logger.info("doc_id_and_representative_doc_id_df_deduped:")
+    deduped_df = doc_id_and_representative_doc_id_df_deduped.limit(10).collect()
+    for row in deduped_df:
+        logger.info(f"  {row}")
     
     # Step 6: Join back with original data
     logger.info("Step 6: Marking duplicates...")
@@ -531,60 +543,3 @@ def compare_with_vanilla(spark: SparkSession, test_size: int = 10000):
     logger.info("="*60)
     
     return result_partition_aware
-
-def main():
-    """
-    Main execution function
-    """
-    # Create Spark session
-    spark = create_spark_session_partition_aware()
-    
-    logger.info("="*60)
-    logger.info("PARTITION-AWARE MINHASH LSH DEDUPLICATION")
-    logger.info("="*60)
-    
-    # Test with sample data
-    logger.info("\nTesting with sample data...")
-    
-    sample_data = [
-        ("doc1", "The quick brown fox jumps over the lazy dog."),
-        ("doc2", "The quick brown fox jumps over the lazy dog!"),
-        ("doc3", "A completely different document about cats."),
-        ("doc4", "The quick brown fox jumps over a lazy dog."),
-        ("doc5", "Another unique document with different content."),
-        ("doc6", "The quick brown fox leaps over the lazy dog."),
-        ("doc7", "Yet another document about something else entirely."),
-        ("doc8", "The quick brown fox jumps over the lazy dog"),
-    ]
-    
-    df = spark.createDataFrame(sample_data, ["doc_id", "text"])
-    
-    # Run partition-aware deduplication
-    result = partition_aware_deduplicate(
-        spark=spark,
-        input_df=df,
-        text_column="text",
-        similarity_threshold=0.7,
-        num_hashes=128,
-        num_bands=16,
-        num_partitions=10
-    )
-    
-    logger.info("\nUnique documents after deduplication:")
-    result.filter(~col("is_duplicate")).select("doc_id", "text").show(truncate=False)
-    
-    logger.info("\nDuplicate groups found:")
-    result.filter(col("is_duplicate")).select(
-        "doc_id", "representative_id", "text"
-    ).show(truncate=False)
-    
-    # Run performance comparison 
-    # ToDo: uncomment after v1 ready.
-    # compare_with_vanilla(spark, test_size=1000)
-    
-    # Clean up
-    spark.stop()
-    logger.info("\nSpark session closed successfully!")
-
-if __name__ == "__main__":
-    main()
