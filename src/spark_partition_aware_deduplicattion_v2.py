@@ -23,10 +23,6 @@ import logging
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-try:
-    from .spark_utils import create_spark_session_partition_aware
-except ImportError:
-    from spark_utils import create_spark_session_partition_aware
 
 def normalize_text(text: str) -> str:
     """
