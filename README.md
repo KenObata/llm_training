@@ -68,6 +68,14 @@ pytest --log-cli-level=INFO test/spark_partition_aware_deduplicattion_v2_unit_te
 pytest --log-cli-level=INFO test/spark_partition_aware_deduplicattion_v2_integration_test.py
 ```
 
+Run only a specific test
+```
+pytest --log-cli-level=INFO test/spark_partition_aware_deduplicattion_v2_integration_test.py::test_integration_commoncrawl_sample -s
+```
+
+## local UI monitoring
+http://192.168.100.130:4040/
+
 # math behind
 
 1.128 sampling called min hash

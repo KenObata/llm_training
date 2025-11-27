@@ -40,6 +40,10 @@ def create_spark_session_partition_aware(app_name: str = "PartitionAwareDedup") 
         .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
         .config("spark.ui.enabled", "true") \
         .config("spark.ui.port", "4040") \
+        .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
+        .config("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider") \
+        .config("spark.hadoop.fs.s3a.path.style.access", "true") \
+        .config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:3.3.4") \
         .getOrCreate()
 
     # Set log level to reduce verbosity
