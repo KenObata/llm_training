@@ -146,6 +146,8 @@ def partition_aware_deduplicate(
     logger.info(f"Starting PARTITION-AWARE deduplication...")
     logger.info(f"Parameters: threshold={similarity_threshold}, hashes={num_hashes}, "
           f"bands={num_bands}, partitions={num_partitions}")
+    logger.info(f"Spark UI available at: {spark.sparkContext.uiWebUrl}")
+    print(f"🚀 Spark UI: {spark.sparkContext.uiWebUrl}")  # Print to console for visibility
     
     rows_per_band = num_hashes // num_bands
     

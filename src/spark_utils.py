@@ -38,6 +38,8 @@ def create_spark_session_partition_aware(app_name: str = "PartitionAwareDedup") 
         .config("spark.memory.offHeap.enabled", "true") \
         .config("spark.memory.offHeap.size", "2g") \
         .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
+        .config("spark.ui.enabled", "true") \
+        .config("spark.ui.port", "4040") \
         .getOrCreate()
 
     # Set log level to reduce verbosity
