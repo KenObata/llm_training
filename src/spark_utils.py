@@ -56,3 +56,11 @@ def create_spark_session_partition_aware(app_name: str = "PartitionAwareDedup") 
     # Set log level to reduce verbosity
     spark.sparkContext.setLogLevel("WARN")
     return spark
+
+def log_dataframe(df: DataFrame, is_debug_mode: bool = False):
+    if is_debug_mode:
+        docs_df = df.limit(10).collect()
+        for row in docs_df:
+            logger.info(f"  {row}")
+    else:
+        logger.info(f"Documents involved in duplicates: {df.count()}")

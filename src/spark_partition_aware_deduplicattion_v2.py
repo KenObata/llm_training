@@ -20,6 +20,8 @@ import time
 import json
 import logging
 
+from spark_utils import log_dataframe
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -119,7 +121,8 @@ def partition_aware_deduplicate(
     similarity_threshold: float = 0.8,
     num_hashes: int = 128,
     num_bands: int = 16,
-    num_partitions: int = 1000
+    num_partitions: int = 1000,
+    is_debug_mode = False
 ) -> DataFrame:
     """
     Partition-aware deduplication that scales to 1TB+
@@ -338,9 +341,7 @@ def partition_aware_deduplicate(
         col("doc2").alias("dst")
     )
     logger.info("edges records:")
-    edges_df = edges.limit(10).collect()
-    for row in edges_df:
-        logger.info(f"  {row}")
+    log_dataframe(edges, is_debug_mode)
     
     # Simple connected components using iterative approach
     # Initialize each document with itself as representative
@@ -349,27 +350,21 @@ def partition_aware_deduplicate(
     # Get documents involved in duplicates
     docs_with_duplicates = edges.select("src").union(edges.select("dst")).distinct()
     logger.info("docs_with_duplicates:")
-    docs_df = docs_with_duplicates.limit(10).collect()
-    for row in docs_df:
-        logger.info(f"  {row}")
+    log_dataframe(docs_with_duplicates, is_debug_mode)
 
     # Build groups
     edges_group_by_src_df = edges.groupBy("src").agg(
         collect_set("dst").alias("connected_docs")
     )
     logger.info("edges_group_by_src_df records:")
-    edges_group_df = edges_group_by_src_df.limit(10).collect()
-    for row in edges_group_df:
-        logger.info(f"  {row}")
+    log_dataframe(edges_group_by_src_df, is_debug_mode)
     
     combine_src_and_connected_docs_df = edges_group_by_src_df.select(
         col("src").alias("doc_id"),
         array_union(array(col("src")), col("connected_docs")).alias("all_connected")
     )
     logger.info("combine_src_and_connected_docs_df records:")
-    combine_df = combine_src_and_connected_docs_df.limit(10).collect()
-    for row in combine_df:
-        logger.info(f"  {row}")
+    log_dataframe(combine_src_and_connected_docs_df, is_debug_mode)
 
 
     # Find representative (minimum doc_id in group)
@@ -379,9 +374,7 @@ def partition_aware_deduplicate(
     )
 
     logger.info("doc_id_and_representative_doc_id_df records:")
-    doc_rep_df = doc_id_and_representative_doc_id_df.limit(10).collect()
-    for row in doc_rep_df:
-        logger.info(f"  {row}")
+    log_dataframe(doc_id_and_representative_doc_id_df, is_debug_mode)
 
     # doc_id_and_representative_doc_id_df still contains duplicates.
     """
@@ -419,9 +412,7 @@ def partition_aware_deduplicate(
     """
     doc_id_and_representative_doc_id_df_deduped = spark.sql(sql_command)
     logger.info("doc_id_and_representative_doc_id_df_deduped:")
-    deduped_df = doc_id_and_representative_doc_id_df_deduped.limit(10).collect()
-    for row in deduped_df:
-        logger.info(f"  {row}")
+    log_dataframe(doc_id_and_representative_doc_id_df_deduped, is_debug_mode)
     
     # Step 6: Join back with original data
     logger.info("Step 6: Marking duplicates...")

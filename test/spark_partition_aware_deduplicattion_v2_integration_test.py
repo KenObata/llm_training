@@ -60,7 +60,8 @@ def test_integration_small_samples():
         similarity_threshold=0.7,
         num_hashes=128,
         num_bands=16,
-        num_partitions=10
+        num_partitions=10,
+        is_debug_mode=True
     )
     
     print("\nUnique documents after deduplication:")
@@ -247,7 +248,8 @@ def test_integration_commoncrawl_sample():
             similarity_threshold=0.9,  # Higher threshold for URL-based content
             num_hashes=64,             # Fewer hashes for speed
             num_bands=8,               # Fewer bands for speed  
-            num_partitions=200         # More partitions for parallelism
+            num_partitions=200,         # More partitions for parallelism
+            is_debug_mode=False
         )
         
         # Collect results
