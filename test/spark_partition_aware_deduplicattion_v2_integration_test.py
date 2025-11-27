@@ -2,7 +2,7 @@
 
 import pytest
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col
+from pyspark.sql.functions import col, length
 import numpy as np
 import time
 from src.spark_partition_aware_deduplicattion_v2 import (
@@ -100,7 +100,8 @@ def test_integration_commoncrawl_sample():
         
         # Option 1: Use Common Crawl WET format for actual text content
         # WET files contain extracted plain text from web pages
-        wet_path = "s3a://commoncrawl/crawl-data/CC-MAIN-2024-22/segments/*/wet/*.wet.gz"
+        # Use HTTP endpoint instead of S3 to avoid credential issues
+        wet_path = "https://data.commoncrawl.org/crawl-data/CC-MAIN-2024-22/segments/1715971057216.39/wet/CC-MAIN-20240517233122-20240518023122-00000.warc.wet.gz"
         
         print(f"Loading Common Crawl WET files from: {wet_path}")
         
@@ -113,8 +114,30 @@ def test_integration_commoncrawl_sample():
         # - <extracted text content>
         
         try:
-            # Read WET files as text
-            wet_rdd = spark.sparkContext.textFile(wet_path)
+            # Download WET file first to avoid Spark HTTP issues
+            import urllib.request
+            import tempfile
+            import os
+            
+            print("Downloading WET file to local storage...")
+            local_dir = tempfile.mkdtemp()
+            local_path = os.path.join(local_dir, "wet_file.gz")
+            
+            urllib.request.urlretrieve(wet_path, local_path)
+            file_size = os.path.getsize(local_path) / (1024 * 1024)  # MB
+            print(f"Downloaded {file_size:.1f}MB to {local_path}")
+            
+            # Read local WET file with Spark
+            print("Reading local WET file with Spark...")
+            wet_rdd = spark.sparkContext.textFile(local_path)
+            
+            # Check if we can read any lines
+            print("Counting lines in WET file...")
+            line_count = wet_rdd.count()
+            print(f"Read {line_count} lines from WET file")
+            
+            if line_count == 0:
+                raise Exception("WET file appears to be empty or inaccessible")
             
             # Parse WET format to extract URL and text content
             def parse_wet_record(lines):
@@ -158,7 +181,15 @@ def test_integration_commoncrawl_sample():
                 return records
             
             # Process in partitions and parse WET format
+            print("Parsing WET format...")
             parsed_rdd = wet_rdd.glom().flatMap(parse_wet_record)
+            
+            # Check if parsing produced any results
+            parsed_count = parsed_rdd.count()
+            print(f"Parsed {parsed_count} records from WET file")
+            
+            if parsed_count == 0:
+                raise Exception("WET file parsing produced no records")
             
             # Convert to DataFrame and take sample
             from pyspark.sql.types import StructType, StructField, StringType
@@ -167,36 +198,42 @@ def test_integration_commoncrawl_sample():
                 StructField("text", StringType(), True)
             ])
             
-            df_test = spark.createDataFrame(parsed_rdd, schema) \
-                .filter(col("text").isNotNull() & (length(col("text")) > 100)) \
-                .sample(0.0001)  # Take 10% sample for stress test
+            print("Creating DataFrame from parsed records...")
+            df_parsed = spark.createDataFrame(parsed_rdd, schema)
+            
+            print("Applying filters...")
+            df_filtered = df_parsed.filter(col("text").isNotNull() & (length(col("text")) > 100))
+            
+            filtered_count = df_filtered.count()
+            print(f"After filtering: {filtered_count} records")
+            
+            if filtered_count == 0:
+                raise Exception("No records remain after filtering")
+            
+            print("Taking sample...")
+            if filtered_count > 1000000*10:
+                df_filtered = df_filtered.sample(0.001)  # Take 0.01% sample for stress test
+            
+            # Add some duplicate patterns for testing
+            print("Preparing test data with synthetic duplicates...")
+            
+            # Cache for performance
+            df_filtered = df_filtered.cache()
+            test_count = df_filtered.count()
+            print(f"Test dataset size: {test_count:,} documents")
+            
+            # Cleanup downloaded file
+            print("Cleaning up downloaded file...")
+            import shutil
+            shutil.rmtree(local_dir)
             
         except Exception as e:
-            print(f"Error reading WET files: {str(e)}")
-            print("Falling back to Common Crawl index with synthetic text...")
-            
-            # Fallback to index data with synthetic content
-            cc_index_path = "s3://commoncrawl/cc-index/table/cc-main/warc/crawl=CC-MAIN-2024-22/subset=warc"
-            df_raw = spark.read.parquet(cc_index_path).limit(100000)
-            
-            from pyspark.sql.functions import concat_ws, lit, rand
-            df_test = df_raw.select(
-                col("url").alias("doc_id"),
-                concat_ws(" ", 
-                    lit("Website content from"),
-                    col("url"),
-                    lit("with random content"),
-                    (rand() * 1000).cast("int").cast("string")
-                ).alias("text")
-            ).filter(col("doc_id").isNotNull())
-        
-        # Add some duplicate patterns for testing
-        print("Preparing test data with synthetic duplicates...")
-        
-        # Cache for performance
-        df_test = df_test.cache()
-        test_count = df_test.count()
-        print(f"Test dataset size: {test_count:,} documents")
+            # Cleanup on error
+            if 'local_dir' in locals():
+                import shutil
+                shutil.rmtree(local_dir, ignore_errors=True)
+            print("Common Crawl access requires AWS credentials or has connectivity issues.")
+            raise Exception(f"Error reading WET files: {str(e)}")
         
         # Performance monitoring
         start_time = time.time()
@@ -205,7 +242,7 @@ def test_integration_commoncrawl_sample():
         # Run partition-aware deduplication with optimized parameters for large dataset
         result = partition_aware_deduplicate(
             spark=spark,
-            input_df=df_test,
+            input_df=df_filtered,
             text_column="text",
             similarity_threshold=0.9,  # Higher threshold for URL-based content
             num_hashes=64,             # Fewer hashes for speed

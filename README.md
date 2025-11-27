@@ -21,7 +21,10 @@ spark-submit --driver-memory 4g --executor-memory 4g src/spark_deduplication_van
 - spark_deduplication.py - Complete implementation for web-scale deduplication
 - common_crawl_explorer.py: PoC
 
-
+### Check common crawl file with curl
+```
+curl -I https://data.commoncrawl.org/crawl-data/CC-MAIN-2024-22/segments/1715971057216.39/wet/CC-MAIN-20240517233122-20240518023122-00000.warc.wet.gz | head -n 10
+```
 # How to use this library
 setup
 ```
