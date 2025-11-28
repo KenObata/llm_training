@@ -105,3 +105,10 @@ Note:
 3.After at least one bucket matches among two doc, run full 128 sample min hash comparison.
 This will compare x % match out of 128 samples, then if it exceeds user parameter of threashold %, 
 these two docs are considered to be near duplicate.
+
+
+# FAQ
+- does this dedupe take care of transitive duplication? 
+  For example, doc1-doc2 are dup, doc2-doc6 are also dup. Will doc 6 also deduped?
+  - Yes, that's because similar docs based on MIN shingles falls under the same  partitions. So one run of dedupe SQL is sufficient. 
+  In other words, we don't need to run iterative SQL to detect and dedupe duplicates.
