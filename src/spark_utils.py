@@ -2,6 +2,11 @@ from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 from pyspark.sql import Window
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 def create_deduplication_spark_session() -> SparkSession:
     """Create Spark session optimized for deduplication"""

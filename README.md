@@ -67,8 +67,10 @@ pytest --log-cli-level=INFO test/spark_partition_aware_deduplicattion_v2_unit_te
 ```
 
 ## Integration Test
+
+Run only a sample
 ```
-pytest --log-cli-level=INFO test/spark_partition_aware_deduplicattion_v2_integration_test.py
+pytest --log-cli-level=INFO test/spark_partition_aware_deduplicattion_v2_integration_test.py::test_integration_small_samples -s
 ```
 
 Run only a specific test
