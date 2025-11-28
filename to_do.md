@@ -38,3 +38,6 @@ plot_results(results)
         - DONE
     - Week 6-7: Memory and Performance Optimizations
       Priority 3: Signature Compression and Efficient Storage
+        - won't do. we found a problem. if we sort and store delta between
+          two min hashes within a doc, it loses ordering. 
+          Reminder that the ordering matters because each 128 min hash is based on different seed.
